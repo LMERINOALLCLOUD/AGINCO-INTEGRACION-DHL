@@ -1,0 +1,39 @@
+{
+  "id": "bd4e5d46-1b3e-4769-9cd8-5096869f7b31",
+  "name": "EXPEDICIONES DHL - AGINCO",
+  "publisher": "All Cloud Consulting S.L.",
+  "version": "1.0.0.1",
+  "brief": "",
+  "description": "",
+  "privacyStatement": "",
+  "EULA": "",
+  "help": "",
+  "url": "",
+  "logo": "",
+  "dependencies": [
+    {
+      "id": "4e19a758-4f9c-431f-9dba-f43982276566",
+      "publisher": "All Cloud Consulting S.L.",
+      "name": "ALC-AGINCO-BASE",
+      "version": "1.0.1.31"
+    }
+  ],
+  "screenshots": [],
+  "platform": "1.0.0.0",
+  "application": "26.0.0.0",
+  "idRanges": [
+    {
+      "from": 70100,
+      "to": 70149
+    }
+  ],
+  "resourceExposurePolicy": {
+    "allowDebugging": true,
+    "allowDownloadingSource": true,
+    "includeSourceInSymbolFile": true
+  },
+  "runtime": "15.0",
+  "features": [
+    "NoImplicitWith"
+  ]
+}
