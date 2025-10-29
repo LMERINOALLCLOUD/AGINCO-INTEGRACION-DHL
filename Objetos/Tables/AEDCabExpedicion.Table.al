@@ -92,8 +92,8 @@ table 70101 "AED Cab. Expedicion"
         field(16; "Cod. albaran"; Code[20])
         {
             Caption = 'Cod. albarán';
-            DataClassification = ToBeClassified;
-            TableRelation = "Sales Shipment Header";
+            FieldClass = FlowField;
+            CalcFormula = lookup("Sales Shipment Header"."No." where("Cod. expedicion" = field("Cod. Expedicion")));
         }
         field(17; "Etiquetas"; Blob)
         {
@@ -189,10 +189,26 @@ table 70101 "AED Cab. Expedicion"
         rec.CalcFields(Etiquetas);
         if (not Rec.Etiquetas.HasValue) then
             exit;
-        
+
+        Rec.CalcFields("Cod. albaran");
         rec.Etiquetas.CreateInStream(InStr);
         FileName := filemngtm.StripNotsupportChrInFileName(Rec."Cod. albaran") + '.pdf';
         DownloadFromStream(InStr, '', '', '', FileName);
+    end;
+
+    procedure getB64Etiquetas(): Text;
+    var
+        InStr: InStream;
+        FileName: Text;
+        Convert: Codeunit "Base64 Convert";
+    begin
+        rec.CalcFields(Etiquetas);
+        if (not Rec.Etiquetas.HasValue) then
+            exit;
+
+        Rec.CalcFields("Cod. albaran");
+        rec.Etiquetas.CreateInStream(InStr, TextEncoding::UTF8);
+        exit(Convert.ToBase64(InStr));
     end;
 
     procedure checkEstadosEnvioDHL()

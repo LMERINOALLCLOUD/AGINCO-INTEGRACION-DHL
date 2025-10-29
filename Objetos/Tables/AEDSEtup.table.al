@@ -69,9 +69,32 @@ table 70100 "AED Setup"
             TableRelation = "Shipping Agent";
         }
 
-
-
-
+        field(12; "En pruebas"; Boolean)
+        {
+            Caption = 'En pruebas';
+            DataClassification = ToBeClassified;
+        }
+        field(13; "Email pruebas"; text[100])
+        {
+            Caption = 'Email para pruebas';
+            DataClassification = ToBeClassified;
+        }
+        field(15; "Email aut. end-day"; Boolean)
+        {
+            Caption = 'Email automático en End-Day';
+            DataClassification = ToBeClassified;
+        }
+        //printnode direct print        
+        field(17; "AED PrintNode ApiKey"; Text[250])
+        {
+            Caption = 'PrintNode API Key';
+            DataClassification = ToBeClassified;
+        }
+        field(19; "AED PrintNode Print URL"; Text[250])
+        {
+            Caption = 'PrintNode URL Impresión';
+            DataClassification = ToBeClassified;
+        }
     }
 
 

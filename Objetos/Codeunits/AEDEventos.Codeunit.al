@@ -1,5 +1,7 @@
 codeunit 70102 "AED Eventos"
 {
+    Permissions = tabledata "Sales Shipment Header" = rmid;
+
     [EventSubscriber(ObjectType::Codeunit, Codeunit::"Whse.-Post Shipment", 'OnAfterPostWhseShipment', '', false, false)]
     local procedure OnAfterPostWhseShipment(var WarehouseShipmentHeader: Record "Warehouse Shipment Header"; SuppressCommit: Boolean; var IsHandled: Boolean)
     var
@@ -10,6 +12,10 @@ codeunit 70102 "AED Eventos"
         rAEDSetup: Record "AED Setup";
         rItem: Record Item;
         Notif: Notification;
+        rSalesShipmentHeaderToPrint: Record "Sales Shipment Header";
+        userSetup: Record "User Setup";
+        aedPrintNodeInt: Codeunit "AED PrintNode Send PDF";
+        filemngtm: Codeunit "File Management";
     begin
         if SuppressCommit then exit;
         rAEDSetup.Get();
@@ -30,7 +36,6 @@ codeunit 70102 "AED Eventos"
             if rAEDSetup."Tipo numeracion expedicion" = rAEDSetup."Tipo numeracion expedicion"::"Envio registrado" then
                 rExpedicion."Cod. Expedicion" := PostedWarehouseShipmentLine."No.";
 
-            rExpedicion."Cod. albaran" := rSalesShipmentHeader."No.";
             rExpedicion."Cod. envio reg." := PostedWarehouseShipmentLine."No.";
             rExpedicion."Cod. envio" := PostedWarehouseShipmentLine."Whse. Shipment No.";
             rExpedicion."Ship-to Name" := rSalesShipmentHeader."Ship-to Name";
@@ -50,11 +55,37 @@ codeunit 70102 "AED Eventos"
             repeat
                 if rItem.Get(PostedWarehouseShipmentLine."Item No.") then
                     rExpedicion.Peso += rItem."Net Weight";
+                //pasamos el número de expedición al albarán de venta asociado a la línea de envío reg
+                if rSalesShipmentHeader.Get(PostedWarehouseShipmentLine."Posted Source No.") then begin
+                    rSalesShipmentHeader."Cod. expedicion" := rExpedicion."Cod. Expedicion";
+                    rSalesShipmentHeader.Modify();
+                end;
             until PostedWarehouseShipmentLine.Next() = 0;
+
+            //imprimimos el albarán, report 505
+            rSalesShipmentHeader.Reset();
+            rSalesShipmentHeader.SetRange("Cod. expedicion", rExpedicion."Cod. Expedicion");
+            if rSalesShipmentHeader.FindSet() then
+                repeat
+                    Clear(rSalesShipmentHeaderToPrint);
+                    rSalesShipmentHeaderToPrint.Reset();
+                    rSalesShipmentHeaderToPrint.SetRange(No, rSalesShipmentHeader.No);
+                    rSalesShipmentHeaderToPrint.SetRange("Sell-to Customer No.", rSalesShipmentHeader."Sell-to Customer No.");
+                    IF rSalesShipmentHeaderToPrint.FindFirst() then
+                        report.Run(Report::"ALL Albaran Venta", false, false, rSalesShipmentHeaderToPrint);
+                until rSalesShipmentHeader.Next() = 0;
 
             rExpedicion.Insert(true);
             if AEDFuncionalidad.enviarExpedicionDHL(rExpedicion) then begin
-                rExpedicion.descargarEtiquetas();                
+                userSetup.Get(UserId);
+                if userSetup."AED PrintLabel Mode" = userSetup."AED PrintLabel Mode"::DownloadFile then
+                    rExpedicion.descargarEtiquetas()
+                else begin
+                    //printnode integration
+                    aedPrintNodeInt.EnviarAImpresora(rAEDSetup."AED PrintNode ApiKey", rAEDSetup."AED PrintNode Print URL", userSetup."ID Printer PrintNode",
+                        filemngtm.StripNotsupportChrInFileName(rExpedicion."Cod. albaran") + '.pdf', rExpedicion.getB64Etiquetas());
+
+                end;
             end else begin
                 /* no se ve la notificación al cerrarse el envío por la eliminación del registro si hay error se abre la pantalla de expedición
                 Notif.Message(StrSubstNo('Se ha producido un error al enviar la expedición %1. Revise los datos de la misma e intente su envío manualmente', rExpedicion."Cod. Expedicion"));
@@ -68,20 +99,26 @@ codeunit 70102 "AED Eventos"
 
                 Notif.Send();
                 */
-                Page.Run(Page::"AED Expedicion Card", rExpedicion);                
+                Page.Run(Page::"AED Expedicion Card", rExpedicion);
             end;
 
         end;
     end;
 
     [EventSubscriber(ObjectType::Codeunit, Codeunit::"Whse.-Post Shipment", 'OnBeforeCheckWhseShptLines', '', false, false)]
-    local procedure OnBeforeCheckWhseShptLines(var WarehouseShipmentLine: Record "Warehouse Shipment Line";var WarehouseShipmentHeader: Record "Warehouse Shipment Header"; Invoice: Boolean; var SuppressCommit: Boolean; var IsHandled: Boolean)
+    local procedure OnBeforeCheckWhseShptLines(var WarehouseShipmentLine: Record "Warehouse Shipment Line"; var WarehouseShipmentHeader: Record "Warehouse Shipment Header"; Invoice: Boolean; var SuppressCommit: Boolean; var IsHandled: Boolean)
+    var
+        userSEtup: Record "User Setup";
+        AEDSetup: Record "AED Setup";
+        prinNodeInt: Codeunit "AED PrintNode Send PDF";
     begin
         //comrpbamos datos 
         if WarehouseShipmentHeader.Get(WarehouseShipmentLine."No.") then
             if WarehouseShipmentHeader.NoBultos = 0 then
                 Error('Nº de bultos debe ser mayor de 0');
 
-        
+        //comprobar datos de printnode
+        prinNodeInt.checkPrintNodeData();
+
     end;
 }

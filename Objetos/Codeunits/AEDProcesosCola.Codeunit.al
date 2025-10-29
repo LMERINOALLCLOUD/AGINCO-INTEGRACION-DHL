@@ -70,7 +70,7 @@ codeunit 70103 "AED Procesos Cola"
             until rExpediciones.Next() = 0;
     end;
 
-    procedure runEndDay()
+    procedure runEndDay(): Code[20]
     var
         rExpediciones: Record "AED Cab. Expedicion";
         rAEDSetup: Record "AED Setup";
@@ -81,8 +81,10 @@ codeunit 70103 "AED Procesos Cola"
         JToken: JsonToken;
         rEndDayRep: Record "AED End Day Report";
         cuFuncionalidad: Codeunit "AED Funcionalidad";
+        rSalesShipmentHeader: Record "Sales Shipment Header";
 
         httpRequestHandler: Codeunit "AED HTTP Request Handler";
+        window: Dialog;
     begin
         rAEDSetup.Get();
         rAEDSetup.TestField("Series Num. End Day");
@@ -107,6 +109,32 @@ codeunit 70103 "AED Procesos Cola"
 
                     if GuiAllowed then
                         rEndDayRep.descargarReport();
+
+                    //enviar albaranes por mail
+                    if rAEDSetup."Email aut. end-day" then begin
+                        if GuiAllowed then
+                            window.Open('Enviando email albaran ############1#');
+
+                        rExpediciones.Reset();
+                        rExpediciones.SetRange("End day rep. code", rEndDayRep."End Day Report Code");                        
+                        if rExpediciones.FindSet() then
+                            repeat
+                                rSalesShipmentHeader.Reset();
+                                rSalesShipmentHeader.SetRange("Cod. expedicion", rExpediciones."Cod. Expedicion");
+                                if rSalesShipmentHeader.FindSet() then begin
+                                    repeat
+                                        if GuiAllowed then
+                                            window.Update(1, rSalesShipmentHeader.No);
+                                        cuFuncionalidad.sendAlbaranValorado(rSalesShipmentHeader);
+                                    until rSalesShipmentHeader.Next() = 0;
+                                end;
+                            until rExpediciones.Next() = 0;
+
+                        if GuiAllowed then
+                            window.Close();
+                    end;
+
+                    exit(rEndDayRep."End Day Report Code");
                 end;
 
             end else begin

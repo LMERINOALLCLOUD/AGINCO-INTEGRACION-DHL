@@ -2,7 +2,7 @@
   "id": "bd4e5d46-1b3e-4769-9cd8-5096869f7b31",
   "name": "EXPEDICIONES DHL - AGINCO",
   "publisher": "All Cloud Consulting S.L.",
-  "version": "1.0.0.1",
+  "version": "1.0.0.3",
   "brief": "",
   "description": "",
   "privacyStatement": "",
@@ -16,6 +16,12 @@
       "publisher": "All Cloud Consulting S.L.",
       "name": "ALC-AGINCO-BASE",
       "version": "1.0.1.31"
+    },
+    {
+      "id": "59b4bfe2-4353-48ff-9dbb-73b32fd0439b",
+      "publisher": "All Cloud Consulting S.L.",
+      "name": "ALC-AGINCO-INFORMES",
+      "version": "1.0.0.82"
     }
   ],
   "screenshots": [],

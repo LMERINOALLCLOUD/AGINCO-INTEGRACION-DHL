@@ -28,10 +28,21 @@ codeunit 70101 "AED Funcionalidad"
             expedicon.Estado := "AED Estados Expedicion"::Enviado;
             expedicon.Modify();
             //pasamos la info del tracking al albarán asociado
+            //varios albaranes en una expedición            
+            /*
             if rSalesShipmentHeader.Get(expedicon."Cod. albaran") then begin
                 rSalesShipmentHeader."Package Tracking No." := expedicon."Tracking No. DHL";
                 rSalesShipmentHeader.Modify();
             end;
+            */
+            rSalesShipmentHeader.Reset();
+            rSalesShipmentHeader.SetRange("Cod. expedicion", expedicon."Cod. Expedicion");
+            if rSalesShipmentHeader.FindSet() then
+                repeat
+                    rSalesShipmentHeader."Package Tracking No." := expedicon."Tracking No. DHL";
+                    rSalesShipmentHeader.Modify();
+                until rSalesShipmentHeader.Next() = 0;
+
             exit(true);
         end else begin
             expedicon.setError(responseText);
@@ -64,7 +75,10 @@ codeunit 70101 "AED Funcionalidad"
 
         JSonExpedicion.Add('Customer', rAEDSetup."API DHL Customer Code");
         JSonExpedicion.Add('Receiver', JSonReceiver);
-        JSonExpedicion.Add('Reference', rExpedicion."Cod. Expedicion");
+        //cambiamos la reference por el cod. albaran
+        //JSonExpedicion.Add('Reference', rExpedicion."Cod. Expedicion");
+        rExpedicion.CalcFields("Cod. albaran");
+        JSonExpedicion.Add('Reference', rExpedicion."Cod. albaran");
         JSonExpedicion.Add('Quantity', Format(rExpedicion."No. bultos"));
         if rExpedicion.Peso < 1 then
             rExpedicion.Peso := 1;
@@ -127,7 +141,6 @@ codeunit 70101 "AED Funcionalidad"
             if rAEDSetup."Tipo numeracion expedicion" = rAEDSetup."Tipo numeracion expedicion"::"Envio registrado" then
                 rExpedicion."Cod. Expedicion" := PostedWarehouseShipmentLine."No.";
 
-            rExpedicion."Cod. albaran" := rSalesShipmentHeader."No.";
             rExpedicion."Cod. envio reg." := PostedWarehouseShipmentLine."No.";
             rExpedicion."Cod. envio" := PostedWarehouseShipmentLine."Whse. Shipment No.";
             rExpedicion."Ship-to Name" := rSalesShipmentHeader."Ship-to Name";
@@ -147,9 +160,16 @@ codeunit 70101 "AED Funcionalidad"
             repeat
                 if rItem.Get(PostedWarehouseShipmentLine."Item No.") then
                     rExpedicion.Peso += rItem."Net Weight";
+                //pasamos el número de expedición al albarán de venta asociado a la línea de envío reg
+                if rSalesShipmentHeader.Get(PostedWarehouseShipmentLine."Posted Source No.") then begin
+                    rSalesShipmentHeader."Cod. expedicion" := rExpedicion."Cod. Expedicion";
+                    rSalesShipmentHeader.Modify();
+                end;
             until PostedWarehouseShipmentLine.Next() = 0;
 
             rExpedicion.Insert(true);
+
+
 
             if AEDFuncionalidad.enviarExpedicionDHL(rExpedicion) then begin
                 rExpedicion.descargarEtiquetas();
@@ -189,6 +209,83 @@ codeunit 70101 "AED Funcionalidad"
                 exit(false);
 
         exit(true);
+    end;
+
+    procedure sendAlbaranValorado(var rSalesShipmentHeader: Record "Sales Shipment Header"): Boolean
+    var
+        Email: Codeunit Email;
+        Emailmessage: Codeunit "Email Message";
+        TempBlob: Codeunit "Temp Blob";
+        OutStr: OutStream;
+        InStr: InStream;
+        FileName: Text;
+        Recipients: List of [Text];
+        Customer: Record Customer;
+        Convert: Codeunit "Base64 Convert";
+        rSalesShipmentFiltered: Record "Sales Shipment Header";
+        RecRef: RecordRef;
+        AEDSetup: Record "AED Setup";
+    begin
+        AEDSetup.Get();
+
+        Customer.Get(rSalesShipmentHeader."Sell-to Customer No.");
+        if not Customer.AlbaranValorado then
+            exit(false);
+
+        if rSalesShipmentHeader."Sell-to E-Mail" = '' then
+            exit(false);
+
+        // 1) Crear el PDF en un BLOB temporal (ej.: Report 1306 "Sales - Invoice")
+        FileName := rSalesShipmentHeader.No + '.pdf';
+        TempBlob.CreateOutStream(OutStr);
+
+        rSalesShipmentFiltered.Reset();
+        rSalesShipmentFiltered.SetRange(No, rSalesShipmentHeader.No);
+        if rSalesShipmentFiltered.FindFirst() then begin
+            //RecRef.OPEN(Database::"Sales Shipment Header");
+            //RecRef.SETVIEW(rSalesShipmentFiltered.GETVIEW(false));
+            RecRef.GetTable(rSalesShipmentFiltered);
+        end;
+        RecRef.SetRecFilter();
+        Report.SaveAs(report::"ALL Albaran Venta Email", '', ReportFormat::Pdf, OutStr, RecRef); // cambia el reporte si quieres otro
+
+        // 2) Preparar el mensaje
+        if not AEDSetup."En pruebas" then
+            Recipients.Add(rSalesShipmentHeader."Sell-to E-Mail")
+        else
+            Recipients.Add(AEDSetup."Email pruebas");
+        EmailMessage.Create(Recipients, 'Su albarán ' + rSalesShipmentHeader.No, 'Adjunto encontrará su albarán.', true);
+
+        // 3) Adjuntar desde stream
+        TempBlob.CreateInStream(InStr);
+        EmailMessage.AddAttachment(FileName, 'application/pdf', Convert.ToBase64(InStr));
+
+        // 4) Enviar (elige un "Email Scenario" si quieres que salga por la cuenta configurada)
+        exit(Email.Send(EmailMessage, Enum::"Email Scenario"::"Sales Order"));
+
+    end;
+
+    procedure corregirAlbaranesExpedidos()
+    var
+        rSalesShipmentHeader: Record "Sales Shipment Header";
+        rExpediciones: Record "AED Cab. Expedicion";
+        rPostedWhseShipmentLines: Record "Posted Whse. Shipment Line";
+    begin
+        rExpediciones.Reset();
+        if rExpediciones.FindSet() then
+            repeat
+                rPostedWhseShipmentLines.Reset();
+                rPostedWhseShipmentLines.SetRange("No.", rExpediciones."Cod. envio reg.");
+                if rPostedWhseShipmentLines.FindSet() then
+                    repeat
+                        if rSalesShipmentHeader.Get(rPostedWhseShipmentLines."Posted Source No.") then begin
+                            rSalesShipmentHeader."Cod. expedicion" := rExpediciones."Cod. Expedicion";
+                            rSalesShipmentHeader.Modify();
+                        end;
+                    until rPostedWhseShipmentLines.Next() = 0;
+            until rExpediciones.Next() = 0;
+
+            Message('finalizado');
     end;
 
 }

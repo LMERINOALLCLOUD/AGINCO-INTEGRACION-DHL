@@ -24,12 +24,16 @@ page 70102 "AED Setup"
                 field("Series Num. End Day"; Rec."Series Num. End Day")
                 {
                     ApplicationArea = All;
-                }                
+                }
                 field("Transportista DHL"; Rec."Transportista DHL")
                 {
                     ApplicationArea = All;
                 }
-
+                field("Email aut. end-day"; Rec."Email aut. end-day")
+                {
+                    ApplicationArea = All;
+                    ToolTip = 'Enviar mails de albarán valorado automáticamente al genear el report de end-day';
+                }
             }
             group(DatosAPI)
             {
@@ -60,6 +64,27 @@ page 70102 "AED Setup"
                     Editable = false;
                     ApplicationArea = All;
                 }
+                field("En pruebas"; Rec."En pruebas")
+                {
+                    ApplicationArea = All;
+                }
+                field("Email pruebas"; Rec."Email pruebas")
+                {
+                    ApplicationArea = All;
+                }
+            }
+            group(PrintNodeInt)
+            {
+                Caption = 'Datos Integración PrintNode';
+                field("AED PrintNode ApiKey"; Rec."AED PrintNode ApiKey")
+                {
+                    ApplicationArea = All;
+                    ExtendedDatatype = Masked;
+                }
+                field("AED PrintNode Print URL"; Rec."AED PrintNode Print URL")
+                {
+                    ApplicationArea = All;
+                }
             }
         }
     }
@@ -84,6 +109,19 @@ page 70102 "AED Setup"
                     CurrPage.Update();
                 end;
             }
+            action(corregirDatosAlbaranes)
+            {
+                ApplicationArea = All;
+                Caption = 'Corregir ALBARANES ENVIADOS';
+                Image = RefreshText;
+
+                trigger OnAction()
+                var
+                    cufunc: Codeunit "AED Funcionalidad";
+                begin
+                    cufunc.corregirAlbaranesExpedidos();
+                end;
+            }
             /*
             action(ShowTOKEN)
             {
@@ -105,7 +143,7 @@ page 70102 "AED Setup"
     trigger OnOpenPage()
     begin
         Rec.Reset();
-        
+
         IF NOT Rec.GET THEN BEGIN
             Rec.INIT;
             Rec.INSERT;

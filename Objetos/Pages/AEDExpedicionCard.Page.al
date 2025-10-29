@@ -162,11 +162,25 @@ page 70100 "AED Expedicion Card"
                 Enabled = not datosEditables;
 
                 trigger OnAction()
+                var
+                    PrintNodeInt: Codeunit "AED PrintNode Send PDF";
+                    UserSetup: Record "User Setup";
+                    rAEDSetup: Record "AED Setup";
+                    filemngtm: Codeunit "File Management";
                 begin
                     IF Rec.Estado = Rec.Estado::"Error envio" then
                         exit;
 
-                    Rec.descargarEtiquetas();
+                    UserSetup.Get(UserId);
+                    PrintNodeInt.checkPrintNodeData();
+                    if UserSetup."AED PrintLabel Mode" = UserSetup."AED PrintLabel Mode"::DownloadFile then
+                        Rec.descargarEtiquetas()
+                    else begin
+                        rAEDSetup.Get();                        
+                        PrintNodeInt.EnviarAImpresora(rAEDSetup."AED PrintNode ApiKey", rAEDSetup."AED PrintNode Print URL", userSetup."ID Printer PrintNode",
+                            filemngtm.StripNotsupportChrInFileName(Rec."Cod. albaran") + '.pdf', Rec.getB64Etiquetas());
+                    end;
+
                 end;
             }
         }
